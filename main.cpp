@@ -5,10 +5,58 @@
 
 namespace fs = std::filesystem;
 
+struct DirectoryInfo
+{
+    size_t fileCount;
+    size_t directoryCount;
+    uintmax_t totalSize;
+};
+
+DirectoryInfo getDirectoryInfo(const std::string &directoryPath)
+{
+    DirectoryInfo info = {0, 0, 0};
+
+    try
+    {
+        for (const auto &entry : fs::recursive_directory_iterator(directoryPath))
+        {
+            if (entry.is_regular_file())
+            {
+                info.fileCount++;
+                try
+                {
+                    info.totalSize += entry.file_size();
+                }
+                catch (const fs::filesystem_error &)
+                {
+                    // Ignore files that can't be accessed
+                }
+            }
+            else if (entry.is_directory())
+            {
+                info.directoryCount++;
+            }
+        }
+    }
+    catch (const fs::filesystem_error &ex)
+    {
+        std::cerr << "Directory access error: " << ex.what() << std::endl;
+    }
+
+    return info;
+}
+
 std::vector<std::string> getFilesWithRelativePath(const std::string &directoryPath)
 {
     std::vector<std::string> files;
     fs::path basePath = fs::absolute(directoryPath);
+
+    // Сначала получаем общую информацию о директории
+    DirectoryInfo info = getDirectoryInfo(directoryPath);
+    size_t totalFiles = info.fileCount;
+    size_t processedFiles = 0;
+
+    std::cout << "Total files to process: " << totalFiles << std::endl;
 
     try
     {
@@ -18,8 +66,21 @@ std::vector<std::string> getFilesWithRelativePath(const std::string &directoryPa
             {
                 fs::path relativePath = fs::relative(entry.path(), basePath);
                 files.push_back(relativePath.string());
+
+                processedFiles++;
+
+                // Выводим прогресс каждые 100 файлов или для последнего файла
+                if (processedFiles % 100 == 0 || processedFiles == totalFiles)
+                {
+                    size_t remainingFiles = totalFiles - processedFiles;
+                    std::cout << "Processed: " << processedFiles << " files, Remaining: "
+                              << remainingFiles << " files" << std::endl;
+                }
             }
         }
+
+        // Финальное сообщение о завершении
+        std::cout << "Processing completed! Total files processed: " << processedFiles << std::endl;
     }
     catch (const fs::filesystem_error &ex)
     {
@@ -66,7 +127,15 @@ int main()
         return 1;
     }
 
-    std::cout << "Select search mode:" << std::endl;
+    // Показываем общую информацию о директории
+    DirectoryInfo info = getDirectoryInfo(directoryPath);
+    std::cout << "\n=== Directory Information ===" << std::endl;
+    std::cout << "Total files: " << info.fileCount << std::endl;
+    std::cout << "Total directories: " << info.directoryCount << std::endl;
+    std::cout << "Total size: " << info.totalSize << " bytes" << std::endl;
+    std::cout << "=============================" << std::endl;
+
+    std::cout << "\nSelect search mode:" << std::endl;
     std::cout << "1 - Current directory only" << std::endl;
     std::cout << "2 - Recursive (including subdirectories)" << std::endl;
     std::cout << "Your choice: ";
