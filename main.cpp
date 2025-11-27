@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <vector>
 #include <string>
+#include <fstream>
 
 namespace fs = std::filesystem;
 
@@ -114,12 +115,45 @@ std::vector<std::string> getFilesWithRelativePathShallow(const std::string &dire
     return files;
 }
 
-int main()
+bool writeFilesToOutput(const std::vector<std::string> &files, const std::string &outputFile)
 {
-    std::string directoryPath;
+    std::ofstream outFile(outputFile);
+    if (!outFile.is_open())
+    {
+        std::cerr << "Error: Could not open output file: " << outputFile << std::endl;
+        return false;
+    }
 
-    std::cout << "Enter directory path: ";
-    std::getline(std::cin, directoryPath);
+    for (const auto &file : files)
+    {
+        outFile << file << std::endl;
+    }
+
+    outFile.close();
+    return true;
+}
+
+int main(int argc, char *argv[])
+{
+    // Проверяем аргументы командной строки
+    if (argc < 3)
+    {
+        std::cerr << "Usage: " << argv[0] << " <directory_path> <output_file> [mode]" << std::endl;
+        std::cerr << "Modes:" << std::endl;
+        std::cerr << "  1 - Current directory only" << std::endl;
+        std::cerr << "  2 - Recursive (including subdirectories) - DEFAULT" << std::endl;
+        return 1;
+    }
+
+    std::string directoryPath = argv[1];
+    std::string outputFile = argv[2];
+    int choice = 2; // По умолчанию рекурсивный поиск
+
+    // Если указан третий аргумент - используем его как выбор режима
+    if (argc >= 4)
+    {
+        choice = std::stoi(argv[3]);
+    }
 
     if (!fs::exists(directoryPath) || !fs::is_directory(directoryPath))
     {
@@ -135,45 +169,34 @@ int main()
     std::cout << "Total size: " << info.totalSize << " bytes" << std::endl;
     std::cout << "=============================" << std::endl;
 
-    std::cout << "\nSelect search mode:" << std::endl;
-    std::cout << "1 - Current directory only" << std::endl;
-    std::cout << "2 - Recursive (including subdirectories)" << std::endl;
-    std::cout << "Your choice: ";
-
-    int choice;
-    std::cin >> choice;
-
     std::vector<std::string> files;
 
     if (choice == 1)
     {
+        std::cout << "\nSearching in current directory only..." << std::endl;
         files = getFilesWithRelativePathShallow(directoryPath);
-        std::cout << "\nFiles in current directory:" << std::endl;
     }
     else if (choice == 2)
     {
+        std::cout << "\nSearching recursively (including subdirectories)..." << std::endl;
         files = getFilesWithRelativePath(directoryPath);
-        std::cout << "\nFiles recursively (including subdirectories):" << std::endl;
     }
     else
     {
-        std::cerr << "Invalid choice!" << std::endl;
+        std::cerr << "Invalid choice! Using default recursive mode." << std::endl;
+        files = getFilesWithRelativePath(directoryPath);
+    }
+
+    // Записываем результаты в файл
+    if (writeFilesToOutput(files, outputFile))
+    {
+        std::cout << "\nResults written to: " << outputFile << std::endl;
+        std::cout << "Total files found: " << files.size() << std::endl;
+    }
+    else
+    {
+        std::cerr << "Failed to write results to file!" << std::endl;
         return 1;
-    }
-
-    if (files.empty())
-    {
-        std::cout << "No files found in the specified directory." << std::endl;
-    }
-    else
-    {
-        std::cout << "Found files (" << files.size() << "):" << std::endl;
-        std::cout << "----------------------------------------" << std::endl;
-
-        for (const auto &file : files)
-        {
-            std::cout << file << std::endl;
-        }
     }
 
     return 0;
